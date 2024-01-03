@@ -80,7 +80,7 @@ class ResNestBottleneck(nn.Module):
         self.avd_last = nn.AvgPool2d(3, avd_stride, padding=1) if avd_stride > 0 and not avd_first else None
 
         self.conv3 = nn.Conv2d(group_width, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = norm_layer(planes*4)
+        self.bn3 = norm_layer(planes * 4)
         self.act3 = act_layer(inplace=True)
         self.downsample = downsample
 

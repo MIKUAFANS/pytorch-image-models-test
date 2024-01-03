@@ -3,6 +3,8 @@ from .adaptive_avgmax_pool import \
     adaptive_avgmax_pool2d, select_adaptive_pool2d, AdaptiveAvgMaxPool2d, SelectAdaptivePool2d
 from .attention_pool import AttentionPoolLatent
 from .attention_pool2d import AttentionPool2d, RotAttentionPool2d, RotaryEmbedding
+from .attention2d import Mlp1dViT, Mlp2dViT, LayerNorm1dViT, LayerNorm2dViT, Attention2dViT
+from .attention_variants import AttentionWithRelPosViT
 from .blur_pool import BlurPool2d
 from .classifier import ClassifierHead, create_classifier, NormMlpClassifierHead
 from .cond_conv2d import CondConv2d, get_condconv_initializer
@@ -17,7 +19,7 @@ from .create_norm import get_norm_layer, create_norm_layer
 from .create_norm_act import get_norm_act_layer, create_norm_act_layer, get_norm_act_layer
 from .drop import DropBlock2d, DropPath, drop_block_2d, drop_path
 from .eca import EcaModule, CecaModule, EfficientChannelAttn, CircularEfficientChannelAttn
-from .evo_norm import EvoNorm2dB0, EvoNorm2dB1, EvoNorm2dB2,\
+from .evo_norm import EvoNorm2dB0, EvoNorm2dB1, EvoNorm2dB2, \
     EvoNorm2dS0, EvoNorm2dS0a, EvoNorm2dS1, EvoNorm2dS1a, EvoNorm2dS2, EvoNorm2dS2a
 from .fast_norm import is_fast_norm, set_fast_norm, fast_group_norm, fast_layer_norm
 from .filter_response_norm import FilterResponseNormTlu2d, FilterResponseNormAct2d
@@ -31,7 +33,7 @@ from .mixed_conv2d import MixedConv2d
 from .mlp import Mlp, GluMlp, GatedMlp, SwiGLU, SwiGLUPacked, ConvMlp, GlobalResponseNormMlp
 from .non_local_attn import NonLocalAttn, BatNonLocalAttn
 from .norm import GroupNorm, GroupNorm1, LayerNorm, LayerNorm2d, RmsNorm
-from .norm_act import BatchNormAct2d, GroupNormAct, GroupNorm1Act, LayerNormAct, LayerNormAct2d,\
+from .norm_act import BatchNormAct2d, GroupNormAct, GroupNorm1Act, LayerNormAct, LayerNormAct2d, \
     SyncBatchNormAct, convert_sync_batchnorm, FrozenBatchNormAct2d, freeze_batch_norm_2d, unfreeze_batch_norm_2d
 from .padding import get_padding, get_same_padding, pad_same
 from .patch_dropout import PatchDropout

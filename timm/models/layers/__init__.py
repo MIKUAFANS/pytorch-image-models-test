@@ -3,6 +3,8 @@ from timm.layers.activations import *
 from timm.layers.adaptive_avgmax_pool import \
     adaptive_avgmax_pool2d, select_adaptive_pool2d, AdaptiveAvgMaxPool2d, SelectAdaptivePool2d
 from timm.layers.attention_pool2d import AttentionPool2d, RotAttentionPool2d, RotaryEmbedding
+from timm.layers.attention2d import Mlp1dViT, Mlp2dViT, LayerNorm1dViT, LayerNorm2dViT, Attention2dViT
+from timm.layers.attention_variants import AttentionWithRelPosViT
 from timm.layers.blur_pool import BlurPool2d
 from timm.layers.classifier import ClassifierHead, create_classifier
 from timm.layers.cond_conv2d import CondConv2d, get_condconv_initializer

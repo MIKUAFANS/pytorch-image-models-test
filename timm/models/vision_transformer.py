@@ -28,6 +28,7 @@ import math
 from collections import OrderedDict
 from functools import partial
 from typing import Any, Callable, Dict, Optional, Sequence, Set, Tuple, Type, Union, List
+
 try:
     from typing import Literal
 except ImportError:
@@ -49,7 +50,6 @@ from ._manipulate import named_apply, checkpoint_seq, adapt_input_conv
 from ._registry import generate_default_cfgs, register_model, register_model_deprecations
 
 __all__ = ['VisionTransformer']  # model_registry will add each entrypoint fn to this
-
 
 _logger = logging.getLogger(__name__)
 
@@ -320,6 +320,7 @@ class ParallelThingsBlock(nn.Module):
     Based on:
       `Three things everyone should know about Vision Transformers` - https://arxiv.org/abs/2203.09795
     """
+
     def __init__(
             self,
             dim: int,
@@ -537,6 +538,12 @@ class VisionTransformer(nn.Module):
         if weight_init != 'skip':
             self.init_weights(weight_init)
 
+        self.contrastive_head = nn.Sequential(
+            nn.LazyLinear(64),
+            nn.ReLU(inplace=True),
+            nn.LazyLinear(64),
+        )
+
     def init_weights(self, mode: Literal['jax', 'jax_nlhb', 'moco', ''] = '') -> None:
         assert mode in ('jax', 'jax_nlhb', 'moco', '')
         head_bias = -math.log(self.num_classes) if 'nlhb' in mode else 0.
@@ -572,7 +579,7 @@ class VisionTransformer(nn.Module):
     def get_classifier(self) -> nn.Module:
         return self.head
 
-    def reset_classifier(self, num_classes: int, global_pool = None) -> None:
+    def reset_classifier(self, num_classes: int, global_pool=None) -> None:
         self.num_classes = num_classes
         if global_pool is not None:
             assert global_pool in ('', 'avg', 'token', 'map')
@@ -691,6 +698,20 @@ class VisionTransformer(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.forward_features(x)
         x = self.forward_head(x)
+        return x
+
+    def contrastive_forward(self, x):
+        x = self.forward_features(x)
+        if self.attn_pool is not None:
+            x = self.attn_pool(x)
+        elif self.global_pool == 'avg':
+            x = x[:, self.num_prefix_tokens:].mean(dim=1)
+        elif self.global_pool:
+            x = x[:, 0]  # class token
+        x = self.fc_norm(x)
+        x = self.head_drop(x)
+        x = nn.functional.normalize(self.contrastive_head(x), dim=1)
+
         return x
 
 
@@ -890,7 +911,8 @@ def _load_weights(model: VisionTransformer, checkpoint_path: str, prefix: str = 
         model.attn_pool.norm.weight.copy_(_n2p(w[f'{block_prefix}LayerNorm_0/scale']))
         model.attn_pool.norm.bias.copy_(_n2p(w[f'{block_prefix}LayerNorm_0/bias']))
         for r in range(2):
-            getattr(model.attn_pool.mlp, f'fc{r + 1}').weight.copy_(_n2p(w[f'{block_prefix}MlpBlock_0/Dense_{r}/kernel']))
+            getattr(model.attn_pool.mlp, f'fc{r + 1}').weight.copy_(
+                _n2p(w[f'{block_prefix}MlpBlock_0/Dense_{r}/kernel']))
             getattr(model.attn_pool.mlp, f'fc{r + 1}').bias.copy_(_n2p(w[f'{block_prefix}MlpBlock_0/Dense_{r}/bias']))
 
     mha_sub, b_sub, ln1_sub = (0, 0, 1) if big_vision else (1, 3, 2)
@@ -1068,8 +1090,8 @@ def _cfg(url: str = '', **kwargs) -> Dict[str, Any]:
         **kwargs,
     }
 
-default_cfgs = {
 
+default_cfgs = {
     # re-finetuned augreg 21k FT on in1k weights
     'vit_base_patch16_224.augreg2_in21k_ft_in1k': _cfg(
         hf_hub_id='timm/'),
@@ -1177,19 +1199,19 @@ default_cfgs = {
 
     # patch models, imagenet21k (weights from official Google JAX impl), classifier not valid
     'vit_base_patch32_224.orig_in21k': _cfg(
-        #url='https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_patch32_224_in21k-8db57226.pth',
+        # url='https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_patch32_224_in21k-8db57226.pth',
         hf_hub_id='timm/',
         num_classes=0),
     'vit_base_patch16_224.orig_in21k': _cfg(
-        #url='https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_patch16_224_in21k-e5005f0a.pth',
+        # url='https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_base_patch16_224_in21k-e5005f0a.pth',
         hf_hub_id='timm/',
         num_classes=0),
     'vit_large_patch32_224.orig_in21k': _cfg(
-        #url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_large_patch32_224_in21k-9046d2e7.pth',
+        # url='https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_large_patch32_224_in21k-9046d2e7.pth',
         hf_hub_id='timm/',
         num_classes=0),
     'vit_large_patch16_224.orig_in21k': _cfg(
-        #url='https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_large_patch16_224_in21k-606da67d.pth',
+        # url='https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-vitjx/jx_vit_large_patch16_224_in21k-606da67d.pth',
         hf_hub_id='timm/',
         num_classes=0),
     'vit_huge_patch14_224.orig_in21k': _cfg(
@@ -1423,7 +1445,7 @@ default_cfgs = {
         mean=OPENAI_CLIP_MEAN, std=OPENAI_CLIP_STD, crop_pct=1.0),
 
     'vit_base_patch32_clip_224.laion2b_ft_in12k': _cfg(
-        #hf_hub_id='timm/vit_base_patch32_clip_224.laion2b_ft_in12k',  # FIXME weight exists, need to push
+        # hf_hub_id='timm/vit_base_patch32_clip_224.laion2b_ft_in12k',  # FIXME weight exists, need to push
         mean=OPENAI_CLIP_MEAN, std=OPENAI_CLIP_STD, num_classes=11821),
     'vit_base_patch16_clip_224.laion2b_ft_in12k': _cfg(
         hf_hub_id='timm/',
@@ -1945,7 +1967,7 @@ def vit_huge_patch14_224(pretrained: bool = False, **kwargs) -> VisionTransforme
 def vit_giant_patch14_224(pretrained: bool = False, **kwargs) -> VisionTransformer:
     """ ViT-Giant (little-g) model (ViT-g/14) from `Scaling Vision Transformers` - https://arxiv.org/abs/2106.04560
     """
-    model_args = dict(patch_size=14, embed_dim=1408, mlp_ratio=48/11, depth=40, num_heads=16)
+    model_args = dict(patch_size=14, embed_dim=1408, mlp_ratio=48 / 11, depth=40, num_heads=16)
     model = _create_vision_transformer('vit_giant_patch14_224', pretrained=pretrained, **dict(model_args, **kwargs))
     return model
 
@@ -1954,7 +1976,7 @@ def vit_giant_patch14_224(pretrained: bool = False, **kwargs) -> VisionTransform
 def vit_gigantic_patch14_224(pretrained: bool = False, **kwargs) -> VisionTransformer:
     """ ViT-Gigantic (big-G) model (ViT-G/14) from `Scaling Vision Transformers` - https://arxiv.org/abs/2106.04560
     """
-    model_args = dict(patch_size=14, embed_dim=1664, mlp_ratio=64/13, depth=48, num_heads=16)
+    model_args = dict(patch_size=14, embed_dim=1664, mlp_ratio=64 / 13, depth=48, num_heads=16)
     model = _create_vision_transformer(
         'vit_gigantic_patch14_224', pretrained=pretrained, **dict(model_args, **kwargs))
     return model
@@ -2045,7 +2067,7 @@ def vit_giant_patch16_gap_224(pretrained: bool = False, **kwargs) -> VisionTrans
     """ ViT-Giant (little-gg) model (ViT-g/16) w/ no class token, avg pool
     """
     model_args = dict(
-        patch_size=16, embed_dim=1408, depth=40, num_heads=16, mlp_ratio=48/11,
+        patch_size=16, embed_dim=1408, depth=40, num_heads=16, mlp_ratio=48 / 11,
         class_token=False, global_pool='avg', fc_norm=False)
     model = _create_vision_transformer(
         'vit_giant_patch16_gap_224', pretrained=pretrained, **dict(model_args, **kwargs))
@@ -2172,7 +2194,8 @@ def vit_giant_patch14_clip_224(pretrained: bool = False, **kwargs) -> VisionTran
     Pretrained weights from CLIP image tower.
     """
     model_args = dict(
-        patch_size=14, embed_dim=1408, mlp_ratio=48/11, depth=40, num_heads=16, pre_norm=True, norm_layer=nn.LayerNorm)
+        patch_size=14, embed_dim=1408, mlp_ratio=48 / 11, depth=40, num_heads=16, pre_norm=True,
+        norm_layer=nn.LayerNorm)
     model = _create_vision_transformer(
         'vit_giant_patch14_clip_224', pretrained=pretrained, **dict(model_args, **kwargs))
     return model
@@ -2184,7 +2207,8 @@ def vit_gigantic_patch14_clip_224(pretrained: bool = False, **kwargs) -> VisionT
     Pretrained weights from CLIP image tower.
     """
     model_args = dict(
-        patch_size=14, embed_dim=1664, mlp_ratio=64/13, depth=48, num_heads=16, pre_norm=True, norm_layer=nn.LayerNorm)
+        patch_size=14, embed_dim=1664, mlp_ratio=64 / 13, depth=48, num_heads=16, pre_norm=True,
+        norm_layer=nn.LayerNorm)
     model = _create_vision_transformer(
         'vit_gigantic_patch14_clip_224', pretrained=pretrained, **dict(model_args, **kwargs))
     return model
